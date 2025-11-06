@@ -1,77 +1,91 @@
-export default function handler(req, res) {
-  // Configurar CORS
-  res.setHeader('Access-Control-Allow-Origin', '*');
-  res.setHeader('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
-  res.setHeader('Access-Control-Allow-Headers', 'Content-Type');
 
-  if (req.method === 'OPTIONS') {
-    return res.status(200).end();
-  }
+const express = require('express');
+const app = express();
+const PORT = process.env.PORT || 3000;
 
-  // Variáveis em memória (para demo)
-  let currentPIN = null;
-  let generatedAt = null;
+let currentPIN = null;
+let generatedAt = null;
 
-  function generatePIN() {
+app.use(express.json());
+
+// Permitir CORS
+app.use((req, res, next) => {
+    res.header('Access-Control-Allow-Origin', '*');
+    res.header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS');
+    res.header('Access-Control-Allow-Headers', 'Content-Type');
+    
+    if (req.method === 'OPTIONS') {
+        return res.status(200).end();
+    }
+    next();
+});
+
+function generatePIN() {
     return Math.floor(100000 + Math.random() * 900000).toString();
-  }
+}
 
-  if (req.method === 'GET' && req.url === '/api/2fa') {
-    // Rota principal - mostra informações
-    res.status(200).json({
-      message: "API 2FA Simples",
-      endpoints: {
-        "GET /api/2fa/generate": "Gera um novo PIN",
-        "POST /api/2fa/verify": "Verifica um PIN",
-        "GET /api/2fa/status": "Status atual"
-      }
+// Rota principal
+app.get('/', (req, res) => {
+    res.json({
+        message: "🔐 API 2FA Simples",
+        endpoints: {
+            "GET /generate": "Gera novo PIN",
+            "POST /verify": "Verifica PIN", 
+            "GET /status": "Status atual"
+        }
     });
-    return;
-  }
+});
 
-  if (req.method === 'GET' && req.url === '/api/2fa/generate') {
-    // Gerar novo PIN
+// Gerar PIN
+app.get('/generate', (req, res) => {
     currentPIN = generatePIN();
     generatedAt = new Date().toISOString();
     
-    console.log(`📱 NOVO PIN GERADO: ${currentPIN} - ${generatedAt}`);
+    console.log(`📱 NOVO PIN GERADO: ${currentPIN}`);
+    console.log(`⏰ Horário: ${generatedAt}`);
     
-    res.status(200).json({ 
-      pin: currentPIN,
-      generated_at: generatedAt,
-      message: "PIN gerado com sucesso! Veja nos logs do console."
+    res.json({ 
+        pin: currentPIN,
+        generated_at: generatedAt,
+        message: "PIN gerado! Veja nos logs do Render."
     });
-    return;
-  }
+});
 
-  if (req.method === 'POST' && req.url === '/api/2fa/verify') {
+// Verificar PIN
+app.post('/verify', (req, res) => {
     const { pin } = req.body;
     
+    if (!pin) {
+        return res.status(400).json({ valid: false, message: "PIN não fornecido" });
+    }
+    
     if (!currentPIN) {
-      return res.status(400).json({ valid: false, message: "Nenhum PIN foi gerado ainda" });
+        return res.status(400).json({ valid: false, message: "Nenhum PIN foi gerado ainda" });
     }
 
     if (pin === currentPIN) {
-      // PIN válido - limpar após uso
-      const validPIN = currentPIN;
-      currentPIN = null;
-      generatedAt = null;
-      
-      res.status(200).json({ valid: true, message: "PIN válido! Acesso concedido." });
+        console.log(`✅ PIN VÁLIDO: ${pin}`);
+        const validPIN = currentPIN;
+        currentPIN = null;
+        generatedAt = null;
+        
+        res.json({ valid: true, message: "PIN válido! Acesso concedido." });
     } else {
-      res.status(200).json({ valid: false, message: "PIN inválido!" });
+        console.log(`❌ PIN INVÁLIDO: ${pin} (esperado: ${currentPIN})`);
+        res.json({ valid: false, message: "PIN inválido!" });
     }
-    return;
-  }
+});
 
-  if (req.method === 'GET' && req.url === '/api/2fa/status') {
-    res.status(200).json({ 
-      has_pin: currentPIN !== null,
-      generated_at: generatedAt
+// Status
+app.get('/status', (req, res) => {
+    res.json({ 
+        has_pin: currentPIN !== null,
+        generated_at: generatedAt,
+        pin: currentPIN // ⚠️ Só para teste, remova em produção
     });
-    return;
-  }
+});
 
-  // Se chegou aqui, rota não encontrada
-  res.status(404).json({ error: "Rota não encontrada" });
-}
+app.listen(PORT, () => {
+    console.log(`🚀 API 2FA rodando na porta ${PORT}`);
+    console.log(`📝 Acesse: https://sua-api.onrender.com`);
+});
